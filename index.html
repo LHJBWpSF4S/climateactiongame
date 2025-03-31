@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Climate Cause & Consequence Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <style>
+        .node {
+            cursor: pointer;
+            transition: box-shadow 0.2s ease-in-out; /* Change transition */
+        }
+
+        .node:hover {
+            /* transform: scale(1.1); */ /* Remove transform */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Add box-shadow */
+        }
+
+        .link-line {
+            stroke-width: 4;
+            cursor: pointer;
+            transition: stroke 0.2s ease, opacity 0.2s ease;
+        }
+
+        .link-line:hover {
+            opacity: 0.7;
+        }
+
+        .correct-link {
+            stroke: green;
+        }
+
+        .incorrect-link {
+            stroke: red; /* Incorrect links are red */
+        }
+
+        .feedback-link {
+            stroke: #0077cc; /* Blue for correct feedback loops */
+        }
+
+        .link-text {
+            font-size: 10px; /* Adjusted size */
+            font-weight: normal;
+            text-anchor: middle;
+            fill: #333;
+            pointer-events: none;
+            /* Important: Text doesn't interfere with clicks */
+            text-shadow: 0px 0px 3px white; /* Improve readability */
+        }
+
+        .correct-text {
+            fill: green;
+            font-weight: bold;
+        }
+
+        .incorrect-text {
+            fill: red; /* Red text for incorrect */
+            font-weight: bold;
+        }
+
+        .feedback-text {
+            fill: #0077cc; /* Blue text for feedback */
+            font-weight: bold;
+        }
+
+        .explanation-panel {
+             /* Removed fixed height, will rely on flex container */
+             flex-grow: 1; /* Allow panel to grow */
+             overflow-y: auto; /* Add scroll for long content */
+        }
+
+        .node-rect {
+            transition: fill 0.2s ease;
+        }
+
+        .node-rect-linking {
+            fill-opacity: 0.7;
+            stroke-dasharray: 4;
+            stroke: #3498db; /* Blue stroke when starting a link */
+        }
+        /* Style for bigger arrows in side panel */
+        .side-panel-arrow {
+            font-size: 1.1rem; /* Adjust size as needed */
+            line-height: 1;
+        }
+    </style>
+</head>
+
+<body class="overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- Climate Concepts Data (Unchanged from previous version) ---
+        const climateConcepts = [
+            // Concepts data remains the same, positions recalculated
+             { id: 1, title: "Climate Education", icon: "🌍", description: "Understanding climate change causes, impacts, and solutions empowers individuals and communities to take informed action. Education fosters climate literacy and promotes behavioral change. Source: UNESCO", source: "https://www.unesco.org/en/climate-change/education", color: "bg-blue-200", type: "solution" },
+            { id: 2, title: "Community Action", icon: "🤝", description: "Local groups driving change through collective efforts like promoting local renewables, advocating for policy changes, or organizing conservation projects. Collective action amplifies individual impact.", source: "#", color: "bg-green-200", type: "solution" },
+            { id: 3, title: "Carbon Pricing", icon: "💰", description: "Making polluters pay for their carbon emissions through taxes or cap-and-trade systems. This incentivizes shifts to cleaner technologies and generates revenue for climate solutions. Source: Montel", source: "https://montel.energy/blog/what-are-the-benefits-of-carbon-pricing-in-power-markets", color: "bg-yellow-200", type: "solution" },
+            { id: 4, title: "Renewable Energy", icon: "☀️", description: "Transitioning power generation to sources like solar, wind, geothermal, and hydro reduces reliance on fossil fuels, cutting greenhouse gas emissions significantly.", source: "https://www.ipcc.ch/report/ar6/wg3/", color: "bg-orange-200", type: "solution" },
+            { id: 5, title: "Energy Efficiency", icon: "⚡", description: "Using less energy to achieve the same output through better technology, insulation, and practices. This reduces overall energy demand and associated emissions. Source: IEA", source: "https://www.iea.org/topics/energy-efficiency", color: "bg-purple-200", type: "solution" },
+            { id: 6, title: "Electric Transport", icon: "🚗", description: "Shifting cars, buses, and trains from fossil fuels to electricity (ideally generated from renewables) drastically cuts transport emissions, a major pollution source.", source: "https://www.ipcc.ch/report/ar6/wg3/", color: "bg-teal-200", type: "solution" },
+            { id: 7, title: "Urban Planning", icon: "🏙️", description: "Designing cities with green spaces, efficient public transport, and sustainable buildings reduces urban heat islands, lowers emissions, and improves quality of life.", source: "https://www.ipcc.ch/report/ar6/wg3/chapter/chapter-8/", color: "bg-indigo-200", type: "solution" },
+            { id: 8, title: "Sustainable Farms", icon: "🌾", description: "Practices like agroforestry, reduced tillage, and better livestock management can reduce agricultural emissions (methane, nitrous oxide) and enhance carbon storage in soils.", source: "https://www.fao.org/climate-change/en/", color: "bg-lime-200", type: "solution" },
+            { id: 9, title: "Afforestation", icon: "🌳", description: "Planting trees and restoring forests (reforestation) helps absorb atmospheric CO2. Forests are vital carbon sinks and support biodiversity. Source: ICR", source: "https://www.carbonregistry.com/sectors/afforestation-and-reforestation", color: "bg-emerald-200", type: "solution" },
+            { id: 10, title: "Circular Economy", icon: "♻️", description: "Moving from a 'take-make-dispose' model to one that emphasizes reuse, repair, and recycling reduces emissions from resource extraction, manufacturing, and waste. Source: Ellen MacArthur Foundation", source: "https://www.ellenmacarthurfoundation.org/topics/climate/overview", color: "bg-cyan-200", type: "solution" },
+            { id: 11, title: "Fossil Fuels", icon: "🏭", description: "Burning coal, oil, and natural gas for energy is the primary source of human-caused greenhouse gas emissions driving climate change.", source: "https://www.ipcc.ch/report/ar6/wg1/", color: "bg-gray-400", type: "cause" },
+            { id: 12, title: "Greenhouse Gases", icon: "💨", description: "Gases like Carbon Dioxide (CO2), Methane (CH4), and Nitrous Oxide (N2O) trap heat in the atmosphere, leading to warming. Concentrations have risen sharply due to human activities.", source: "https://www.ipcc.ch/report/ar6/wg1/chapter/chapter-2/", color: "bg-gray-500", type: "cause" },
+            { id: 13, title: "Deforestation", icon: "🪓", description: "Clearing forests releases stored carbon and reduces the planet's capacity to absorb CO2, contributing significantly to greenhouse gas levels.", source: "https://www.ipcc.ch/report/ar6/wg3/chapter/chapter-7/", color: "bg-red-300", type: "cause" },
+            { id: 14, title: "Global Warming", icon: "🌡️", description: "The long-term heating of Earth's climate system observed since the pre-industrial period due to human activities, primarily fossil fuel burning.", source: "https://www.ipcc.ch/report/ar6/wg1/chapter/chapter-2/", color: "bg-red-400", type: "impact" },
+            { id: 15, title: "Sea Level Rise", icon: "🌊", description: "Global warming causes glaciers and ice sheets to melt and ocean water to expand, leading to rising sea levels that threaten coastal areas.", source: "https://www.ipcc.ch/report/ar6/wg1/chapter/chapter-9/", color: "bg-blue-400", type: "impact" },
+            { id: 16, title: "Extreme Weather", icon: "🌪️", description: "Climate change increases the frequency and intensity of heatwaves, droughts, heavy rainfall, floods, and powerful storms.", source: "https://www.ipcc.ch/report/ar6/wg1/chapter/chapter-11/", color: "bg-yellow-400", type: "impact" },
+            { id: 17, title: "Ocean Acidification", icon: "🧪", description: "Oceans absorb excess CO2, leading to increased acidity. This harms marine life, especially organisms with shells and skeletons like corals and shellfish.", source: "https://www.noaa.gov/education/resource-collections/ocean-coasts/ocean-acidification", color: "bg-cyan-400", type: "impact" },
+            { id: 18, title: "Ice-Albedo Feedback", icon: "❄️📉", description: "Melting ice exposes darker ocean or land, which absorbs more sunlight, causing further warming and more melting. This is a positive feedback loop.", source: "https://climate.nasa.gov/nasa_science/science/", color: "bg-purple-300", type: "feedback" },
+            { id: 19, title: "Permafrost Thaw", icon: "🧊🔓", description: "Warming causes frozen ground (permafrost) to thaw, releasing large amounts of stored CO2 and methane, further accelerating warming (positive feedback).", source: "https://scientistswarning.forestry.oregonstate.edu/climate-feedback-loops-project", color: "bg-blue-300", type: "feedback" },
+            { id: 20, title: "Climate Adaptation", icon: "🛡️", description: "Adjusting to actual or expected climate change impacts. This involves strategies to reduce vulnerability and enhance resilience (e.g., sea walls, drought-resistant crops). Source: UNDP", source: "https://climatepromise.undp.org/news-and-stories/what-climate-change-adaptation-and-why-it-crucial", color: "bg-yellow-300", type: "solution" },
+            { id: 21, title: "Carbon Capture", icon: "⚙️", description: "Technologies to capture CO2 emissions from sources like power plants or directly from the atmosphere and store it underground. Source: National Grid", source: "https://www.nationalgrid.com/stories/energy-explained/what-is-ccs-how-does-it-work", color: "bg-gray-300", type: "solution" },
+            { id: 22, title: "Methane Reduction", icon: "🐄📉", description: "Targeting methane (a potent GHG) emissions from sources like agriculture (livestock), waste decomposition, and fossil fuel extraction.", source: "https://www.globalmethanepledge.org/", color: "bg-lime-300", type: "solution" },
+        ];
+
+        // --- Correct Relationships Data (Unchanged) ---
+        const correctRelationships = [
+             { source: 11, target: 12 }, { source: 13, target: 12 }, { source: 12, target: 14 },
+             { source: 14, target: 15 }, { source: 14, target: 16 }, { source: 12, target: 17 }, { source: 14, target: 17 },
+             { source: 14, target: 18 }, { source: 18, target: 14, type: 'feedback' }, { source: 14, target: 19 }, { source: 19, target: 12, type: 'feedback' },
+             { source: 4, target: 11 }, { source: 5, target: 11 }, { source: 6, target: 11 }, { source: 3, target: 11 }, { source: 9, target: 12 }, { source: 21, target: 12 }, { source: 22, target: 12 }, { source: 10, target: 11 },
+             { source: 20, target: 15 }, { source: 20, target: 16 }, { source: 7, target: 20 },
+             { source: 1, target: 2 }, { source: 1, target: 10 }, { source: 2, target: 3 }, { source: 2, target: 4 }, { source: 2, target: 9 }, { source: 3, target: 4 }, { source: 3, target: 5 }, { source: 8, target: 22 },
+        ];
+
+
+        function ClimateActionAdventure() {
+            // --- Node Distribution Logic (Unchanged from previous version) ---
+            const distributeNodesEvenly = (concepts) => {
+                const nodeSize = { width: 100, height: 120 };
+                const svgWidth = window.innerWidth - 320; // Side panel width
+                const svgHeight = window.innerHeight;
+                const padding = 20;
+                const positions = {};
+                const columns = Math.max(1, Math.floor((svgWidth - 2 * padding) / nodeSize.width));
+                let colIndex = 0;
+                let rowIndex = 0;
+
+                 concepts.forEach(concept => {
+                    const x = padding + colIndex * nodeSize.width + (nodeSize.width / 2 - 25);
+                    const y = padding + rowIndex * nodeSize.height;
+                    positions[concept.id] = { x, y };
+                    colIndex++;
+                    if (colIndex >= columns) {
+                        colIndex = 0;
+                        rowIndex++;
+                    }
+                 });
+                 return concepts.map(c => ({ ...c, x: positions[c.id].x, y: positions[c.id].y }));
+            };
+
+            // --- State Hooks (Unchanged) ---
+            const [nodes, setNodes] = React.useState(() => distributeNodesEvenly(climateConcepts));
+            const [links, setLinks] = React.useState([]);
+            const [linkingSource, setLinkingSource] = React.useState(null);
+            const [selectedNode, setSelectedNode] = React.useState(null);
+            const [draggedNode, setDraggedNode] = React.useState(null);
+            const [correctCount, setCorrectCount] = React.useState(0);
+            const [showCongrats, setShowCongrats] = React.useState(false);
+            const totalPossibleRelationships = correctRelationships.length;
+
+             // --- Event Handlers (Mostly Unchanged) ---
+             const handleNodeClick = (nodeId) => {
+                 if (linkingSource === null) { setSelectedNode(nodes.find(node => node.id === nodeId)); }
+             };
+             const handleRightClick = (nodeId, event) => { /* Link creation logic - unchanged */
+                event.preventDefault();
+                if (linkingSource === null) { setLinkingSource(nodeId); setSelectedNode(null); }
+                else if (linkingSource !== nodeId) {
+                    const linkExists = links.some(l => (l.source === linkingSource && l.target === nodeId) || (l.source === nodeId && l.target === linkingSource));
+                    if (!linkExists) {
+                        const isCorrect = correctRelationships.some(r => (r.source === linkingSource && r.target === nodeId) || (r.source === nodeId && r.target === linkingSource && r.type === 'feedback'));
+                        const feedbackRel = correctRelationships.find(r => ((r.source === linkingSource && r.target === nodeId) || (r.source === nodeId && r.target === linkingSource)) && r.type === 'feedback');
+                        setLinks([...links, { source: linkingSource, target: nodeId, isCorrect, type: (isCorrect && feedbackRel && feedbackRel.type) || 'causal' }]);
+                    }
+                    setLinkingSource(null);
+                } else { setLinkingSource(null); }
+             };
+             const handleMouseDown = (nodeId, event) => { /* Drag start logic - unchanged */
+                if (event.button !== 2) {
+                    const node = nodes.find(n => n.id === nodeId);
+                    setSelectedNode(null); setLinkingSource(null);
+                    setDraggedNode({ node, offsetX: event.clientX - node.x, offsetY: event.clientY - node.y, initialX: node.x, initialY: node.y });
+                }
+             };
+             const handleMouseMove = (event) => { /* Drag move logic - unchanged */
+                 if (draggedNode) { setNodes(nodes.map(n => n.id === draggedNode.node.id ? { ...n, x: event.clientX - draggedNode.offsetX, y: event.clientY - draggedNode.offsetY } : n)); }
+             };
+             const handleMouseUp = (event) => { /* Drag end/Click check logic - unchanged */
+                 if (draggedNode) {
+                     const currentNodeState = nodes.find(n => n.id === draggedNode.node.id);
+                     if (currentNodeState) {
+                         const movedDistance = Math.sqrt(Math.pow(currentNodeState.x - draggedNode.initialX, 2) + Math.pow(currentNodeState.y - draggedNode.initialY, 2));
+                         if (movedDistance < 5 && event.button !== 2) { handleNodeClick(draggedNode.node.id); }
+                     }
+                     setDraggedNode(null);
+                 }
+                 if (event.button === 2 && !event.target.closest('.node')) { setLinkingSource(null); }
+             };
+             const handleMouseLeave = (event) => { /* Drag cancel logic - unchanged */
+                 if (draggedNode) { setDraggedNode(null); }
+             };
+             const closePanel = () => { setSelectedNode(null); };
+             const deleteLink = (indexToDelete) => { setLinks(currentLinks => currentLinks.filter((_, index) => index !== indexToDelete)); };
+
+             // --- Effect Hook for Score (Unchanged) ---
+            React.useEffect(() => {
+                const currentCorrectLinks = new Set();
+                links.forEach(link => {
+                    const isActuallyCorrect = correctRelationships.some(rel => (rel.source === link.source && rel.target === link.target) || (rel.source === link.target && rel.target === link.source && rel.type === 'feedback'));
+                    if (isActuallyCorrect) {
+                         const key = (link.type === 'feedback' && link.source > link.target) ? `${link.target}-${link.source}` : `${link.source}-${link.target}`;
+                         currentCorrectLinks.add(key);
+                    }
+                });
+                const newCorrectCount = currentCorrectLinks.size;
+                setCorrectCount(newCorrectCount);
+                setShowCongrats(newCorrectCount === totalPossibleRelationships);
+            }, [links, totalPossibleRelationships]);
+
+             // --- SmartArrow Component (Unchanged) ---
+            const SmartArrow = ({ sourceId, targetId, isCorrect, type, onDelete }) => {
+                 const sourceNode = nodes.find(node => node.id === sourceId);
+                 const targetNode = nodes.find(node => node.id === targetId);
+                 if (!sourceNode || !targetNode) return null;
+                 let arrowColor = "red", textColorClass = "incorrect-text", markerId = "arrowhead-incorrect";
+                 if (isCorrect) {
+                     if (type === 'feedback') { arrowColor = "#0077cc"; textColorClass = "feedback-text"; markerId = "arrowhead-feedback"; }
+                     else { arrowColor = "green"; textColorClass = "correct-text"; markerId = "arrowhead-correct"; }
+                 }
+                 const nodeSize = 50;
+                 const dx = targetNode.x - sourceNode.x, dy = targetNode.y - sourceNode.y;
+                 const dist = Math.sqrt(dx * dx + dy * dy);
+                 if (dist === 0) return null;
+                 const startPadding = nodeSize / 2, endPadding = nodeSize / 2 + 10;
+                 const startX = sourceNode.x + nodeSize / 2 + (dx * startPadding) / dist;
+                 const startY = sourceNode.y + nodeSize / 2 + (dy * startPadding) / dist;
+                 const endX = targetNode.x + nodeSize / 2 - (dx * endPadding) / dist;
+                 const endY = targetNode.y + nodeSize / 2 - (dy * endPadding) / dist;
+                 return (
+                     <g>
+                         <line x1={startX} y1={startY} x2={endX} y2={endY} stroke={arrowColor} strokeWidth="3" className="link-line" markerEnd={`url(#${markerId})`} onClick={onDelete} />
+                         <line x1={startX} y1={startY} x2={endX} y2={endY} stroke="transparent" strokeWidth="15" style={{ cursor: 'pointer' }} onClick={onDelete} />
+                     </g>
+                 );
+             };
+
+            // --- Main Render ---
+            return (
+                <div className="relative w-full h-screen flex bg-gray-50" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseLeave}>
+                    {/* SVG Canvas (Unchanged structure) */}
+                     <svg width="calc(100% - 320px)" height="100%" className="bg-gradient-to-br from-sky-100 via-white to-emerald-100">
+                        <defs>
+                            <marker id="arrowhead-correct" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="strokeWidth"><polygon points="0 0, 10 3.5, 0 7" fill="green" /></marker>
+                            <marker id="arrowhead-incorrect" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="strokeWidth"><polygon points="0 0, 10 3.5, 0 7" fill="red" /></marker>
+                            <marker id="arrowhead-feedback" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="strokeWidth"><polygon points="0 0, 10 3.5, 0 7" fill="#0077cc" /></marker>
+                        </defs>
+                        {links.map((link, index) => <SmartArrow key={`${link.source}-${link.target}-${index}`} sourceId={link.source} targetId={link.target} isCorrect={link.isCorrect} type={link.type} onDelete={() => deleteLink(index)} />)}
+                        {nodes.map(node => (
+                             <g key={node.id} transform={`translate(${node.x},${node.y})`} className="node" onClick={(e) => { if (!draggedNode && e.button !== 2) handleNodeClick(node.id); }} onMouseDown={(e) => handleMouseDown(node.id, e)} onContextMenu={(e) => handleRightClick(node.id, e)}>
+                                 <rect width="50" height="50" rx="10" ry="10" fill="white" stroke={linkingSource === node.id ? "#3498db" : "black"} strokeWidth={linkingSource === node.id ? "3" : "1"} className={`${node.color} node-rect ${linkingSource === node.id ? 'node-rect-linking' : ''}`} />
+                                 <text x="25" y="32" textAnchor="middle" fontSize="24" pointerEvents="none" fill="#333">{node.icon}</text>
+                                 <text x="25" y="65" textAnchor="middle" fontSize="10" pointerEvents="none" fill="#333">{node.title}</text>
+                             </g>
+                         ))}
+                         {linkingSource && nodes.find(n => n.id === linkingSource) && <circle cx={nodes.find(n => n.id === linkingSource).x + 25} cy={nodes.find(n => n.id === linkingSource).y + 25} r="5" fill="#3498db" pointerEvents="none"><animate attributeName="r" from="5" to="10" dur="0.8s" repeatCount="indefinite" /></circle>}
+                    </svg>
+
+                     {/* Side Panel - Adjusted for full height */}
+                     <div className="w-80 flex-shrink-0 border-l border-gray-300 shadow-lg flex flex-col h-screen"> {/* Added flex flex-col h-screen */}
+                         {selectedNode ? (
+                             // Panel showing selected node details (Structure unchanged)
+                             <div className="explanation-panel bg-white p-4">
+                                 <h2 className="text-xl font-bold mb-2 flex items-center"><span className="text-2xl mr-2">{selectedNode.icon}</span>{selectedNode.title}</h2>
+                                 <p className="text-sm text-gray-700 mb-3">{selectedNode.description}</p>
+                                 {selectedNode.source && selectedNode.source !== "#" && <a href={selectedNode.source} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline text-xs mb-4 block">Learn more...</a>}
+                                 <button onClick={closePanel} className="mt-4 w-full bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded text-sm">Close</button>
+                             </div>
+                         ) : (
+                            // Default panel with updated instructions
+                            <div className="explanation-panel bg-gray-100 p-4 text-gray-600">
+                                <h3 className="font-semibold text-lg mb-2">Climate Cause & Consequence</h3>
+                                <p className="text-sm mb-3">
+                                    The goal is to connect the concepts by drawing lines between them. Try to find all the correct relationships! Your progress is tracked in the counter below.
+                                </p>
+                                <p className="text-sm mb-2">How to play:</p>
+                                <ul className="text-xs list-disc list-inside space-y-1">
+                                    <li><span className="font-semibold">Click</span> a card to learn more.</li>
+                                    <li><span className="font-semibold">Right-click</span> a card to start drawing a connection (it will glow blue).</li>
+                                    <li><span className="font-semibold">Right-click</span> a second card to complete the connection.</li>
+                                     {/* Removed brackets from arrows */}
+                                     <li>Connections show correct causes/effects (<span className="text-green-600 font-bold side-panel-arrow">→</span>) and correct feedback loops (<span className="text-blue-600 font-bold side-panel-arrow">→</span>).</li>
+                                    <li>Incorrect links are shown in red (<span className="text-red-600 font-bold side-panel-arrow">→</span>).</li>
+                                    <li><span className="font-semibold">Click</span> a line/arrow to remove it.</li>
+                                    <li><span className="font-semibold">Drag</span> cards to rearrange the layout.</li>
+                                </ul>
+                                {/* Removed Card Types Legend */}
+                                <div className="mt-3 text-xs italic">
+                                    Tip: Right-clicking anywhere else on the background cancels drawing a connection.
+                                </div>
+                            </div>
+                         )}
+                    </div>
+
+                     {/* Score Counter (Unchanged) */}
+                     <div className="absolute bottom-4 left-4 bg-white p-3 rounded shadow-md border border-gray-200 z-10"> {/* Added z-index just in case */}
+                        <p className="text-sm font-semibold">Correct Relationships: {correctCount} / {totalPossibleRelationships}</p>
+                         {showCongrats && <p className="text-green-600 font-bold text-base mt-1">Congratulations! You found all the relationships!</p>}
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the component
+        ReactDOM.render(<ClimateActionAdventure />, document.getElementById('root'));
+
+    </script>
+</body>
+
+</html>
